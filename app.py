@@ -19,6 +19,7 @@ def grocy_meal_plan():
     resp = requests.get(grocy_host + '/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
     if resp.status_code != 200:
         # This means something went wrong.
+        print(f"ERROR {resp.status_code}")
         raise Exception('GET /api/objects/meal_plan {}'.format(resp.status_code))
     today = date.today()
     mealplan = []
@@ -28,7 +29,7 @@ def grocy_meal_plan():
         if thatday == today and meal['type'] != "note":
             print('{} {} {} {} {} {} {}'.format(meal['id'], meal['day'], meal['type'], meal['recipe_id'], meal['recipe_servings'], meal['product_id'], meal['product_amount']))
             mealplan.append({ 
-                "meal_id": int_or_zero(meal['id']), 
+                "id": int_or_zero(meal['id']), 
                 "type": meal['type'], 
                 "recipe_id": int_or_zero(meal['recipe_id']), 
                 "recipe_servings": int_or_zero(meal['recipe_servings']), 
@@ -39,7 +40,7 @@ def grocy_meal_plan():
 
 def grocy_meal_plan_consume():
     meal = grocy_meal_plan()
-    r = []
+    status = 1
     for p in meal:
         print(p)
         if p["type"] == "product":
@@ -53,8 +54,9 @@ def grocy_meal_plan_consume():
                 f'{grocy_host}/api/recipes/{p["recipe_id"]}/consume', 
                 headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api}
             )
-        r.append(resp.text)
-    return r
+        if resp.status_code != 200 and resp.status_code != 204:
+            status = 0
+    return status
 
 
 client = Client(client_id="grocy")
@@ -66,11 +68,11 @@ def on_message(client, userdata, message):
     topic = message.topic
     print(topic)
     if topic == "grocy/mealplan":
-        publish_topic = f'grocy/mealplan/today'
-        payload = json.dumps({ "meal": grocy_meal_plan() })
+        publish_topic = 'grocy/mealplan/today'
+        payload = 1 if len(grocy_meal_plan()) >= 3 else 0
     elif topic == "grocy/mealplan/today/consume":
-        publish_topic = f'grocy/mealplan/today/consumed'
-        payload = json.dumps({ "responses": grocy_meal_plan_consume()})
+        publish_topic = 'grocy/mealplan/today/consumed'
+        payload = grocy_meal_plan_consume()
     print(payload)
     client.publish(publish_topic, payload=payload, qos=2)
 
