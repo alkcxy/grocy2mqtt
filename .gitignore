@@ -131,3 +131,5 @@ dmypy.json
 config.ini
 
 .DS_Store
+
+.vscode

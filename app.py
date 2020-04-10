@@ -1,13 +1,8 @@
 
-import requests, json
+import requests, json, re
 from datetime import date
 import configparser
 from paho.mqtt.client import Client
-
-config = configparser.ConfigParser()
-config.read('config.ini')
-grocy_host = config['grocy']['host']
-grocy_api = config['grocy']['api_key']
 
 def int_or_zero(id):
     numeric_id = 0
@@ -23,25 +18,31 @@ def grocy_meal_plan():
         raise Exception('GET /api/objects/meal_plan {}'.format(resp.status_code))
     today = date.today()
     mealplan = []
+    note = ""
     for meal in resp.json():
         day = meal['day'].split('-')
         thatday = date(int(day[0]), int(day[1]), int(day[2]))
-        if thatday == today and meal['type'] != "note":
-            print('{} {} {} {} {} {} {}'.format(meal['id'], meal['day'], meal['type'], meal['recipe_id'], meal['recipe_servings'], meal['product_id'], meal['product_amount']))
-            mealplan.append({ 
-                "id": int_or_zero(meal['id']), 
-                "type": meal['type'], 
-                "recipe_id": int_or_zero(meal['recipe_id']), 
-                "recipe_servings": int_or_zero(meal['recipe_servings']), 
-                "product_id": int_or_zero(meal["product_id"]), 
-                "product_amount": int_or_zero(meal["product_amount"]) 
-            })
-    return mealplan
+        if thatday == today:
+            if meal['type'] != "note":
+                print('{} {} {} {} {} {} {}'.format(meal['id'], meal['day'], meal['type'], meal['recipe_id'], meal['recipe_servings'], meal['product_id'], meal['product_amount']))
+                mealplan.append({ 
+                    "id": int_or_zero(meal['id']), 
+                    "type": meal['type'], 
+                    "recipe_id": int_or_zero(meal['recipe_id']), 
+                    "recipe_servings": int_or_zero(meal['recipe_servings']), 
+                    "product_id": int_or_zero(meal["product_id"]), 
+                    "product_amount": int_or_zero(meal["product_amount"]) 
+                })
+            else:
+                note = meal["note"]
+    return { "mealplan": mealplan, "note": note }
 
 def grocy_meal_plan_consume():
     meal = grocy_meal_plan()
     status = 1
-    for p in meal:
+    mealplan = meal.get("mealplan", [])
+    
+    for p in mealplan:
         print(p)
         if p["type"] == "product":
             resp = requests.post(
@@ -67,22 +68,48 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, message):
     topic = message.topic
     print(topic)
-    if topic == "grocy/mealplan":
-        publish_topic = 'grocy/mealplan/today'
-        payload = 1 if len(grocy_meal_plan()) >= 3 else 0
-    elif topic == "grocy/mealplan/today/consume":
-        publish_topic = 'grocy/mealplan/today/consumed'
-        payload = grocy_meal_plan_consume()
-    print(payload)
-    client.publish(publish_topic, payload=payload, qos=2)
+
+def on_disconnect(client, userdata, rc):
+    if rc != 0:
+        print("Unexpected disconnection.")
+
+def on_message_grocy_meaplan(client, userdata, message):
+    mealplan = grocy_meal_plan()
+    exists = 1 if len(mealplan.get("mealplan")) >= 3 else 0
+    note = mealplan.get("note")
+    note = re.sub(r'[\r\n]*(<br />)+[\r\n]*', '\n', note)
+    payload = { "note": note, "exists": exists }
+    
+    client.publish(TOPIC_GROCY_MEALPLAN_TODAY, payload=json.dumps(payload), qos=2)
+
+def on_message_grocy_meaplan_today_consume(client, userdata, message):
+    payload = grocy_meal_plan_consume()
+    client.publish(TOPIC_GROCY_MEALPLAN_TODAY_CONSUMED, payload=payload, qos=2)
+
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+grocy_host = config['grocy']['host']
+grocy_api = config['grocy']['api_key']
+
+mqtt_user = config['mqtt']['user']
+mqtt_password = config['mqtt']['pwd']
+
+TOPIC_GROCY_MEALPLAN="grocy/mealplan"
+TOPIC_GROCY_MEALPLAN_TODAY="grocy/mealplan/today"
+TOPIC_GROCY_MEALPLAN_TODAY_CONSUME="grocy/mealplan/today/consume"
+TOPIC_GROCY_MEALPLAN_TODAY_CONSUMED="grocy/mealplan/today/consumed"
 
 client.on_connect = on_connect
 client.on_message = on_message
+client.on_disconnect = on_disconnect
 
-client.username_pw_set(config['mqtt']['user'], password=config['mqtt']['pwd'])
+client.message_callback_add(TOPIC_GROCY_MEALPLAN, on_message_grocy_meaplan)
+client.message_callback_add(TOPIC_GROCY_MEALPLAN_TODAY_CONSUME, on_message_grocy_meaplan_today_consume)
+
+if mqtt_user and mqtt_password:
+    client.username_pw_set(mqtt_user, password=mqtt_password)
+
 client.connect(config['mqtt']['host'])
-client.subscribe([("grocy/mealplan", 2), ("grocy/mealplan/today/consume", 2)])
+client.subscribe([(TOPIC_GROCY_MEALPLAN, 2), (TOPIC_GROCY_MEALPLAN_TODAY_CONSUME, 2)])
 client.loop_forever()
-
-# if __name__ == "__main__":
-#     print(grocy_meal_plan())
