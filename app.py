@@ -10,19 +10,18 @@ def int_or_zero(id):
         numeric_id = int(float(id))
     return numeric_id
 
-def grocy_meal_plan():
+def grocy_meal_plan(day=date.today()):
     resp = requests.get(grocy_host + '/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
     if resp.status_code != 200:
         # This means something went wrong.
         print(f"ERROR {resp.status_code}")
         raise Exception('GET /api/objects/meal_plan {}'.format(resp.status_code))
-    today = date.today()
     mealplan = []
     note = ""
     for meal in resp.json():
-        day = meal['day'].split('-')
-        thatday = date(int(day[0]), int(day[1]), int(day[2]))
-        if thatday == today:
+        daylist = meal['day'].split('-')
+        thatday = date(int(daylist[0]), int(daylist[1]), int(daylist[2]))
+        if thatday == day:
             if meal['type'] != "note":
                 print('{} {} {} {} {} {} {}'.format(meal['id'], meal['day'], meal['type'], meal['recipe_id'], meal['recipe_servings'], meal['product_id'], meal['product_amount']))
                 mealplan.append({ 
@@ -73,11 +72,22 @@ def on_disconnect(client, userdata, rc):
     if rc != 0:
         print("Unexpected disconnection.")
 
+def __retrieve_date_from_payload(payload):
+    day = date.today()
+    if payload:
+        daylist = re.split(r"\D+", payload.decode("UTF-8"))
+        try:
+            day = date(int(daylist[0]), int(daylist[1]), int(daylist[2]))
+        except:
+            pass
+    return day
+
 def on_message_grocy_meaplan(client, userdata, message):
-    mealplan = grocy_meal_plan()
-    exists = 1 if len(mealplan.get("mealplan")) >= 3 else 0
+    day = __retrieve_date_from_payload(message.payload)
+    mealplan = grocy_meal_plan(day)
+    exists = len(mealplan.get("mealplan"))
     note = mealplan.get("note")
-    note = re.sub(r'[\r\n]*(<br />)+[\r\n]*', '\n', note)
+    note = re.sub(r'[\r\n]*(<br />)+[\r\n]*|[\r\n]+', '\n', note)
     payload = { "note": note, "exists": exists }
     
     client.publish(TOPIC_GROCY_MEALPLAN_TODAY, payload=json.dumps(payload), qos=2)
