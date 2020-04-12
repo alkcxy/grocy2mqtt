@@ -238,4 +238,7 @@ if mqtt_user and mqtt_password:
 
 client.connect(config['mqtt']['host'])
 client.subscribe(tops)
-client.loop_forever()
+try:
+    client.loop_forever()
+except (KeyboardInterrupt, SystemExit):
+    client.disconnect()
