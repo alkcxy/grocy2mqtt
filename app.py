@@ -69,6 +69,8 @@ class Grocy:
                 userfields = self.get_userfields_product(id)
                 if self.payload["errors"]:
                     return
+                if not userfields:
+                    continue
                 shoppinglist_id = userfields.get("shoppinglist")
                 if shoppinglist_id:
                     shoppinglist_item = next(filter(lambda item: item["shopping_list_id"] == shoppinglist_id and item["product_id"] == id, shopping_lists_items), None)
@@ -170,14 +172,11 @@ def __grocy_shoppinglists_add__():
 client = Client(client_id="grocy")
 
 def on_connect(client, userdata, flags, rc):
-    print("Connesso con successo")
-
-def on_message(client, userdata, message):
-    topic = message.topic
+    print("Connected")
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print("Unexpected disconnection.")
+        print(f"Unexpected disconnection. Error code: {rc}")
 
 def __retrieve_date_from_payload(payload):
     day = date.today()
@@ -205,6 +204,10 @@ def on_message_grocy_shoppinglists_add(client, userdata, message):
     payload = __grocy_shoppinglists_add__()
     client.publish(TOPIC_HOME_SHOPPINGLISTS_ADDED, payload=json.dumps(payload), qos=2)
 
+def message_append(topic):
+    client.message_callback_add(topic[0], topic[2])
+    return (topic[0], topic[1])
+
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -225,13 +228,9 @@ TOPICS = (
 )
 
 client.on_connect = on_connect
-client.on_message = on_message
 client.on_disconnect = on_disconnect
 
-tops = []
-for topic in TOPICS:
-    client.message_callback_add(topic[0], topic[2])
-    tops.append((topic[0], topic[1]))
+tops = [message_append(topic) for topic in TOPICS]
 
 if mqtt_user and mqtt_password:
     client.username_pw_set(mqtt_user, password=mqtt_password)
