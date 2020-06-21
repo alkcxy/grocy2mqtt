@@ -82,6 +82,12 @@ class Grocy:
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_MEALPLAN
         return resp.json()
+    
+    def delete_mealplan(self, mealplan_id):
+        requests.delete(f'{grocy_host}/api/objects/meal_plan/{mealplan_id}', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        # if resp.status_code != 204:
+        #     self.payload["errors"] = ErrorCode.DELETE_MEALPLAN
+        # return resp.json()
 
     def consume_product(self, product_id, product_amount):
         resp = requests.post(
@@ -106,13 +112,15 @@ def int_or_zero(id):
         numeric_id = int(float(id))
     return numeric_id
 
-def __grocy_mealplan_list__(day=date.today()):
+def __grocy_mealplan_list__(day=date.today(), diff_days=30):
     grocy = Grocy({ "mealplan": [], "note": "" })
     mealplanlist = grocy.get_mealplan()
     for meal in mealplanlist:
         daylist = meal['day'].split('-')
         thatday = date(int(daylist[0]), int(daylist[1]), int(daylist[2]))
-        if thatday == day:
+        if (day - thatday).days > diff_days:
+            grocy.delete_mealplan(meal['id'])
+        elif thatday == day:
             if meal['type'] != "note":
                 grocy.payload["mealplan"].append({ 
                     "id": int_or_zero(meal['id']), 
