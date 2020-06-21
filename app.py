@@ -1,4 +1,3 @@
-
 import requests, json, re
 from datetime import date
 import configparser
