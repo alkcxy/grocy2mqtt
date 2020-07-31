@@ -1,3 +1,4 @@
+import os
 import requests, json, re
 from datetime import date
 import configparser
@@ -215,14 +216,34 @@ def message_append(topic):
     client.message_callback_add(topic[0], topic[2])
     return (topic[0], topic[1])
 
+
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-grocy_host = config['grocy']['host']
-grocy_api = config['grocy']['api_key']
+if os.environ.get('GROCY_HOST'):
+    grocy_host = os.environ.get('GROCY_HOST')
+else:
+    grocy_host = config['grocy']['host']
 
-mqtt_user = config['mqtt']['user']
-mqtt_password = config['mqtt']['pwd']
+if os.environ.get('GROCY_API_KEY'):
+    grocy_api = os.environ.get('GROCY_API_KEY')
+else:
+    grocy_api = config['grocy']['api_key']
+
+if os.environ.get('MQTT_HOST'):
+    mqtt_host = os.environ.get('MQTT_HOST')
+else:
+    mqtt_host = config['mqtt']['host']
+
+if os.environ.get('MQTT_USER'):
+    mqtt_user = os.environ.get('MQTT_USER')
+else:
+    mqtt_user = config['mqtt']['user']
+
+if os.environ.get('MQTT_PWD'):
+    mqtt_password = os.environ.get('MQTT_PWD')
+else:
+    mqtt_password = config['mqtt']['pwd']
 
 TOPIC_HOME_MEALPLAN_LIST = "home/mealplan/list"
 TOPIC_HOME_MEALPLAN_CONSUMED = "home/mealplan/consumed"
@@ -242,7 +263,8 @@ tops = [message_append(topic) for topic in TOPICS]
 if mqtt_user and mqtt_password:
     client.username_pw_set(mqtt_user, password=mqtt_password)
 
-client.connect(config['mqtt']['host'])
+print(mqtt_host)
+client.connect(mqtt_host)
 client.subscribe(tops)
 try:
     client.loop_forever()
