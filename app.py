@@ -15,33 +15,42 @@ class ErrorCode(IntEnum):
     GET_MEALPLAN = 6
     CONSUME_PRODUCT = 7
     CONSUME_RECIPE = 8
+    GET_PRODUCT_STOCK = 9
 
 class Grocy:
 
-    def __init__(self, payload={}):
+    def __init__(self, host, api_key, payload={}):
         payload["errors"] = ErrorCode.NO_ERROR
+        self.grocy_host = host
+        self.grocy_api_key = api_key
         self.payload = payload
 
     def get_all_shopping_lists_items(self):
-        resp = requests.get(f'{grocy_host}/api/objects/shopping_list', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        resp = requests.get(f'{self.grocy_host}/api/objects/shopping_list', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_SHOPPING_LIST_ITEMS
         return resp.json()
 
     def get_volatile_products(self):
-        resp = requests.get(f'{grocy_host}/api/stock/volatile?expiring_days=5', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        resp = requests.get(f'{self.grocy_host}/api/stock/volatile?expiring_days=5', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_VOLATILE
         return resp.json()
 
     def get_product(self, id):
-        resp = requests.get(f'{grocy_host}/api/objects/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        resp = requests.get(f'{self.grocy_host}/api/objects/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_PRODUCT
         return resp.json()
+    
+    def get_product_in_stock(self, id):
+        resp = requests.get(f'{self.grocy_host}/api/stock/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
+        if resp.status_code != 200:
+            self.payload["errors"] = ErrorCode.GET_PRODUCT_STOCK
+        return resp
 
     def get_userfields_product(self, id):
-        resp = requests.get(f'{grocy_host}/api/userfields/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        resp = requests.get(f'{self.grocy_host}/api/userfields/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_USERFIELDS_PRODUCT
         return resp.json()
@@ -56,7 +65,7 @@ class Grocy:
             "product_amount": product_amount,
             "note": note
         }
-        resp = requests.post(f'{grocy_host}/api/stock/shoppinglist/add-product', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api}, data=data)
+        resp = requests.post(f'{self.grocy_host}/api/stock/shoppinglist/add-product', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key}, data=data)
         if resp.status_code != 204:
             self.payload["errors"] = ErrorCode.ADD_PRODUCT_IN_SHOPPING_LIST
         return resp.status_code
@@ -78,21 +87,21 @@ class Grocy:
                         self.add_product_in_shopping_list(id, shoppinglist_id, cause=cause)
     
     def get_mealplan(self):
-        resp = requests.get(grocy_host + '/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        resp = requests.get(self.grocy_host + '/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_MEALPLAN
         return resp.json()
     
     def delete_mealplan(self, mealplan_id):
-        requests.delete(f'{grocy_host}/api/objects/meal_plan/{mealplan_id}', headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api})
+        requests.delete(f'{grocy_host}/api/objects/meal_plan/{mealplan_id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         # if resp.status_code != 204:
         #     self.payload["errors"] = ErrorCode.DELETE_MEALPLAN
         # return resp.json()
 
     def consume_product(self, product_id, product_amount):
         resp = requests.post(
-                f'{grocy_host}/api/stock/products/{product_id}/consume', 
-                headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api},
+                f'{self.grocy_host}/api/stock/products/{product_id}/consume', 
+                headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key},
                 data={ "amount": product_amount, "transaction_type": "consume",  "spoiled": "false" }
             )
         if resp.status_code != 200 and resp.status_code != 204:
@@ -100,8 +109,8 @@ class Grocy:
 
     def consume_recipe(self, recipe_id):
         resp = requests.post(
-            f'{grocy_host}/api/recipes/{recipe_id}/consume', 
-            headers={'accept': 'application/json', 'GROCY-API-KEY': grocy_api}
+            f'{self.grocy_host}/api/recipes/{recipe_id}/consume', 
+            headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key}
         )
         if resp.status_code != 200 and resp.status_code != 204:
             self.payload["errors"] = ErrorCode.CONSUME_RECIPE
@@ -113,7 +122,7 @@ def int_or_zero(id):
     return numeric_id
 
 def __grocy_mealplan_list__(day=date.today(), diff_days=15):
-    grocy = Grocy({ "mealplan": [], "note": "" })
+    grocy = Grocy(grocy_host, grocy_api, { "mealplan": [], "note": "" })
     mealplanlist = grocy.get_mealplan()
     for meal in mealplanlist:
         daylist = meal['day'].split('-')
@@ -138,7 +147,7 @@ def __grocy_mealplan_consume__(day=date.today()):
     payload = __grocy_mealplan_list__(day)
     if payload["errors"]:
         return payload
-    grocy = Grocy(payload)
+    grocy = Grocy(grocy_host, grocy_api, payload)
     for p in payload["mealplan"]:
         if p["type"] == "product":
             grocy.consume_product(p["product_id"], p["product_amount"])
@@ -149,7 +158,7 @@ def __grocy_mealplan_consume__(day=date.today()):
     return grocy.payload
 
 def __grocy_shoppinglists_add__():
-    grocy = Grocy({ "expiring": 0, "expired": 0, "missing": 0 })
+    grocy = Grocy(grocy_host, grocy_api, { "expiring": 0, "expired": 0, "missing": 0 })
 
     shopping_lists_items = grocy.get_all_shopping_lists_items()
     if grocy.payload["errors"] > 0:
@@ -176,8 +185,6 @@ def __grocy_shoppinglists_add__():
     grocy.manage_volatile_products(missing_products, shopping_lists_items, cause="it's missing")
 
     return grocy.payload
-
-client = Client(client_id="grocy")
 
 def on_connect(client, userdata, flags, rc):
     print("Connected")
@@ -212,7 +219,17 @@ def on_message_grocy_shoppinglists_add(client, userdata, message):
     payload = __grocy_shoppinglists_add__()
     client.publish(TOPIC_HOME_SHOPPINGLISTS_ADDED, payload=json.dumps(payload), qos=2)
 
-def message_append(topic):
+def on_message_grocy_stock_get(client, userdata, message):
+    product_id = message.payload
+    grocy = Grocy(grocy_host, grocy_api)
+    print(grocy_host)
+    print(grocy_api)
+    print(type(product_id))
+    product = grocy.get_product_in_stock(int(product_id))
+    print(product)
+    client.publish(TOPIC_HOME_PRODUCT_IN_STOCK+str(product_id), payload=product, qos=2)
+
+def message_append(client, topic):
     client.message_callback_add(topic[0], topic[2])
     return (topic[0], topic[1])
 
@@ -248,25 +265,29 @@ else:
 TOPIC_HOME_MEALPLAN_LIST = "home/mealplan/list"
 TOPIC_HOME_MEALPLAN_CONSUMED = "home/mealplan/consumed"
 TOPIC_HOME_SHOPPINGLISTS_ADDED = "home/shoppinglists/added"
+TOPIC_HOME_PRODUCT_IN_STOCK = "home/stock/"
 
 TOPICS = (
     ("grocy/mealplan/list", 2, on_message_grocy_mealplan_list), 
     ("grocy/mealplan/consume", 2, on_message_grocy_mealplan_consume),
-    ("grocy/shoppinglists/add", 2, on_message_grocy_shoppinglists_add)
+    ("grocy/shoppinglists/add", 2, on_message_grocy_shoppinglists_add),
+    ("grocy/stock/get", 2, on_message_grocy_stock_get)
 )
 
-client.on_connect = on_connect
-client.on_disconnect = on_disconnect
+if __name__ == "__main__":
+    client = Client(client_id="grocy")
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
 
-tops = [message_append(topic) for topic in TOPICS]
+    tops = [message_append(client, topic) for topic in TOPICS]
 
-if mqtt_user and mqtt_password:
-    client.username_pw_set(mqtt_user, password=mqtt_password)
+    if mqtt_user and mqtt_password:
+        client.username_pw_set(mqtt_user, password=mqtt_password)
 
-print(mqtt_host)
-client.connect(mqtt_host)
-client.subscribe(tops)
-try:
-    client.loop_forever()
-except (KeyboardInterrupt, SystemExit):
-    client.disconnect()
+    print(mqtt_host)
+    client.connect(mqtt_host)
+    client.subscribe(tops)
+    try:
+        client.loop_forever()
+    except (KeyboardInterrupt, SystemExit):
+        client.disconnect()
