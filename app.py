@@ -112,7 +112,7 @@ def int_or_zero(id):
         numeric_id = int(float(id))
     return numeric_id
 
-def __grocy_mealplan_list__(day=date.today(), diff_days=30):
+def __grocy_mealplan_list__(day=date.today(), diff_days=15):
     grocy = Grocy({ "mealplan": [], "note": "" })
     mealplanlist = grocy.get_mealplan()
     for meal in mealplanlist:
