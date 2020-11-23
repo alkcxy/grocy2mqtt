@@ -47,7 +47,7 @@ class Grocy:
         resp = requests.get(f'{self.grocy_host}/api/stock/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_PRODUCT_STOCK
-        return resp
+        return resp.json()
 
     def get_userfields_product(self, id):
         resp = requests.get(f'{self.grocy_host}/api/userfields/products/{id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
@@ -220,19 +220,15 @@ def on_message_grocy_shoppinglists_add(client, userdata, message):
     client.publish(TOPIC_HOME_SHOPPINGLISTS_ADDED, payload=json.dumps(payload), qos=2)
 
 def on_message_grocy_stock_get(client, userdata, message):
-    product_id = message.payload
+    product_id = message.payload.decode("utf-8")
     grocy = Grocy(grocy_host, grocy_api)
-    print(grocy_host)
-    print(grocy_api)
-    print(type(product_id))
+    topic = TOPIC_HOME_PRODUCT_IN_STOCK + str(product_id)
     product = grocy.get_product_in_stock(int(product_id))
-    print(product)
-    client.publish(TOPIC_HOME_PRODUCT_IN_STOCK+str(product_id), payload=product, qos=2)
+    client.publish(topic, payload=json.dumps(product), qos=2)
 
 def message_append(client, topic):
     client.message_callback_add(topic[0], topic[2])
     return (topic[0], topic[1])
-
 
 config = configparser.ConfigParser()
 config.read('config.ini')
