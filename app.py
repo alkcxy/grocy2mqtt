@@ -87,13 +87,13 @@ class Grocy:
                         self.add_product_in_shopping_list(id, shoppinglist_id, cause=cause)
     
     def get_mealplan(self):
-        resp = requests.get(self.grocy_host + '/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
+        resp = requests.get(f'{self.grocy_host}/api/objects/meal_plan', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         if resp.status_code != 200:
             self.payload["errors"] = ErrorCode.GET_MEALPLAN
         return resp.json()
     
     def delete_mealplan(self, mealplan_id):
-        requests.delete(f'{grocy_host}/api/objects/meal_plan/{mealplan_id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
+        requests.delete(f'{self.grocy_host}/api/objects/meal_plan/{mealplan_id}', headers={'accept': 'application/json', 'GROCY-API-KEY': self.grocy_api_key})
         # if resp.status_code != 204:
         #     self.payload["errors"] = ErrorCode.DELETE_MEALPLAN
         # return resp.json()
@@ -167,13 +167,18 @@ def __grocy_shoppinglists_add__():
     volatile_products = grocy.get_volatile_products()
     if grocy.payload["errors"] > 0:
         return grocy.payload
-    
-    expiring_products = [product["product"] for product in volatile_products["expiring_products"]]
-    grocy.payload["expiring"] = len(expiring_products)
-    expired_products = [product["product"] for product in volatile_products["expired_products"]]
-    grocy.payload["expired"] = len(expired_products)
-    grocy.payload["missing"] = len(volatile_products["missing_products"])
-    missing_products = [grocy.get_product(missing_product["id"]) for missing_product in volatile_products["missing_products"]]
+    expiring_products = []
+    expired_products = []
+    missing_products = []
+    if volatile_products.get("expiring_products"):
+        expiring_products = [product["product"] for product in volatile_products["expiring_products"]]
+        grocy.payload["expiring"] = len(expiring_products)
+    if volatile_products.get("expired_products"):
+        expired_products = [product["product"] for product in volatile_products["expired_products"]]
+        grocy.payload["expired"] = len(expired_products)
+    if volatile_products.get("missing_products"):
+        grocy.payload["missing"] = len(volatile_products["missing_products"])
+        missing_products = [grocy.get_product(missing_product["id"]) for missing_product in volatile_products["missing_products"]]
     if grocy.payload["errors"] > 0:
         return grocy.payload
     
@@ -205,6 +210,7 @@ def __retrieve_date_from_payload(payload):
 
 def on_message_grocy_mealplan_list(client, userdata, message):
     day = __retrieve_date_from_payload(message.payload)
+    print(day)
     payload = __grocy_mealplan_list__(day)
     exists = len(payload.get("mealplan"))
     payload["exists"] = exists
@@ -212,6 +218,7 @@ def on_message_grocy_mealplan_list(client, userdata, message):
 
 def on_message_grocy_mealplan_consume(client, userdata, message):
     day = __retrieve_date_from_payload(message.payload)
+    print(day)
     payload = __grocy_mealplan_consume__(day)
     client.publish(TOPIC_HOME_MEALPLAN_CONSUMED, payload=json.dumps(payload), qos=2)
 
@@ -221,9 +228,10 @@ def on_message_grocy_shoppinglists_add(client, userdata, message):
 
 def on_message_grocy_stock_get(client, userdata, message):
     product_id = message.payload.decode("utf-8")
+    print(product_id)
     grocy = Grocy(grocy_host, grocy_api)
     topic = TOPIC_HOME_PRODUCT_IN_STOCK + str(product_id)
-    product = grocy.get_product_in_stock(int(product_id))
+    product = grocy.get_product_in_stock(int(float(product_id)))
     client.publish(topic, payload=json.dumps(product), qos=2)
 
 def message_append(client, topic):
@@ -281,9 +289,11 @@ if __name__ == "__main__":
         client.username_pw_set(mqtt_user, password=mqtt_password)
 
     print(mqtt_host)
+    print(grocy_host)
     client.connect(mqtt_host)
     client.subscribe(tops)
     try:
         client.loop_forever()
     except (KeyboardInterrupt, SystemExit):
         client.disconnect()
+        raise
