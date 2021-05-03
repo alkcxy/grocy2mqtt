@@ -1,6 +1,6 @@
 import os
 import requests, json, re
-from datetime import date
+from datetime import date, datetime
 import configparser
 from paho.mqtt.client import Client
 from enum import IntEnum
@@ -228,11 +228,16 @@ def on_message_grocy_shoppinglists_add(client, userdata, message):
 
 def on_message_grocy_stock_get(client, userdata, message):
     product_id = message.payload.decode("utf-8")
-    print(product_id)
+    now = datetime.now()
+    date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+    print(date_time + " - " + product_id)
     grocy = Grocy(grocy_host, grocy_api)
     topic = TOPIC_HOME_PRODUCT_IN_STOCK + str(product_id)
     product = grocy.get_product_in_stock(int(float(product_id)))
-    client.publish(topic, payload=json.dumps(product), qos=2)
+    payload = json.dumps(product)
+    print(date_time + " - " + payload)
+    client.publish(topic, payload=payload, qos=2)
+    print("paylad " + payload + " published for product " + product_id)
 
 def message_append(client, topic):
     client.message_callback_add(topic[0], topic[2])
