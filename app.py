@@ -295,10 +295,7 @@ if __name__ == "__main__":
 
     print(mqtt_host)
     print(grocy_host)
-    client.connect(mqtt_host)
+    client.connect(mqtt_host, keepalive=300)
     client.subscribe(tops)
-    try:
-        client.loop_forever()
-    except (KeyboardInterrupt, SystemExit):
-        client.disconnect()
-        raise
+    client.loop_forever()
+ 
