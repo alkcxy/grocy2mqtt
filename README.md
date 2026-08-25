@@ -13,6 +13,22 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t grocy/mealplan -n -r -d
 mosquitto_sub -h 127.0.0.1 -p 1883 -t "grocy/mealplan/today"
 ```
 
+## Development
+
+Dependencies are declared in `pyproject.toml` and pinned in `uv.lock`, both
+managed with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv sync            # create .venv and install the locked versions
+uv run python app.py
+uv add <package>   # add a dependency and update the lock
+uv lock --upgrade  # refresh the lock within the declared ranges
+```
+
+`uv sync` installs the exact versions in `uv.lock`, which is the same set the
+image gets, so a local run and the container cannot drift apart. uv fetches a
+matching Python itself, so no system Python 3.13 is required.
+
 ## Configuration
 
 Settings are read from the environment, falling back to a `config.ini` that is
@@ -48,5 +64,9 @@ secrets.
 To build one by hand:
 
 ```bash
-    docker buildx build --platform linux/amd64,linux/arm64 -t alkcxy/grocy2mqtt:dev .
+docker buildx build --platform linux/amd64,linux/arm64 -t alkcxy/grocy2mqtt:dev .
 ```
+
+There is a single `Dockerfile` for both architectures: buildx cross-builds it,
+and every dependency in the lock is either pure Python or ships an `aarch64`
+wheel, so nothing needs compiling on the Pi.

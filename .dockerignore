@@ -1,0 +1,11 @@
+# Nothing here belongs in the image: the build only needs pyproject.toml,
+# uv.lock and app.py. .venv in particular must not be copied over the one
+# uv creates inside the image.
+.git
+.github
+.venv
+__pycache__/
+*.py[cod]
+config.ini
+mosquitto
+README.md
