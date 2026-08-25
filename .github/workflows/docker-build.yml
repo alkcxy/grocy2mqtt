@@ -1,10 +1,13 @@
 name: Build and Push Docker Image
 
-# Images are built in exactly three cases and no other:
-#   - a pull request labelled 'build-docker', published under the branch name
-#     (the label is removed again once the run finishes)
+# The image is built in exactly three cases and no other:
+#   - a pull request gets the 'build-docker' label, published under the branch
+#     name so the branch can be deployed and tried out before it is merged.
+#     The label is removed once the run finishes, so a later commit does not
+#     silently republish.
 #   - a push to master, published as :latest
-#   - a tag v*, published as the matching version
+#   - a v* tag, published as the matching version
+# Ordinary pull request commits build nothing.
 on:
   push:
     branches:
@@ -22,6 +25,10 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    # Gated here rather than on the individual steps: 'labeled' fires for every
+    # label, so without this the whole job would run on 'bug', 'documentation'
+    # and the rest, only to skip the push at the end.
+    if: github.event_name != 'pull_request' || github.event.label.name == 'build-docker'
 
     steps:
       - uses: actions/checkout@v5
@@ -66,12 +73,13 @@ jobs:
           grep -q "missing required settings" /tmp/err || { cat /tmp/err; exit 1; }
 
       - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-docker')
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # metadata-action runs every tag through sanitizeTag, so a branch name
+      # containing a slash arrives as a valid docker tag on its own.
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -88,18 +96,22 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'build-docker') }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Image digest
+        run: echo "pushed ${{ steps.meta.outputs.tags }}"
+
   remove-label:
     runs-on: ubuntu-latest
     needs: build-and-push
-    if: always() && github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'build-docker')
+    if: always() && github.event_name == 'pull_request' && github.event.label.name == 'build-docker'
     permissions:
       pull-requests: write
+
     steps:
       - name: Remove the build-docker label
         uses: actions/github-script@v7
