@@ -13,14 +13,40 @@ mosquitto_pub -h 127.0.0.1 -p 1883 -t grocy/mealplan -n -r -d
 mosquitto_sub -h 127.0.0.1 -p 1883 -t "grocy/mealplan/today"
 ```
 
-## How to build
+## Configuration
+
+Settings are read from the environment, falling back to a `config.ini` that is
+gitignored and therefore absent from a clean checkout:
+
+| Environment | `config.ini` | Required |
+|---|---|---|
+| `GROCY_HOST` | `[grocy] host` | yes |
+| `GROCY_API_KEY` | `[grocy] api_key` | yes |
+| `MQTT_HOST` | `[mqtt] host` | yes |
+| `MQTT_USER` | `[mqtt] user` | no |
+| `MQTT_PWD` | `[mqtt] pwd` | no |
+
+## Images
+
+Images are built and pushed by GitHub Actions for `linux/amd64` and
+`linux/arm64` under a single tag, so no architecture suffix is needed:
+
+Images are built in exactly three cases and no other:
+
+- a push to `master` publishes `alkcxy/grocy2mqtt:latest`
+- a tag `vX.Y.Z` publishes `alkcxy/grocy2mqtt:X.Y.Z` and `alkcxy/grocy2mqtt:X.Y`
+- adding the `build-docker` label to a pull request publishes it under the
+  branch name, so a feature branch can be deployed and tried out before it is
+  merged. The label is removed once the run finishes, so a later commit does
+  not silently republish
+
+Ordinary pull request commits build nothing.
+
+The workflow needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository
+secrets.
+
+To build one by hand:
 
 ```bash
-    docker buildx build --platform linux/arm64 -t alkcxy/grocy2mqtt:0.0.7-arm64 -f Dockerfile.arm64 .
-```
-
-## How to push
-
-```bash
-    docker push alkcxy/grocy2mqtt:0.0.7-arm64
+    docker buildx build --platform linux/amd64,linux/arm64 -t alkcxy/grocy2mqtt:dev .
 ```
