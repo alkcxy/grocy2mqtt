@@ -193,6 +193,10 @@ def __grocy_shoppinglists_add__():
 
 def on_connect(client, userdata, flags, rc):
     print("Connected")
+    # Subscriptions must be renewed on every (re)connect: the session is clean,
+    # so the broker drops them on disconnect and paho does not replay them.
+    if userdata:
+        client.subscribe(userdata)
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
@@ -224,7 +228,7 @@ def on_message_grocy_mealplan_consume(client, userdata, message):
 
 def on_message_grocy_shoppinglists_add(client, userdata, message):
     payload = __grocy_shoppinglists_add__()
-    client.publish(TOPIC_HOME_SHOPPINGLISTS_ADDED, payload=json.dumps(payload), qos=2)
+    client.publish(TOPIC_HOME_SHOPPINGLISTS_ADDED, payload=json.dumps(payload), qos=2, retain=True)
 
 def on_message_grocy_stock_get(client, userdata, message):
     product_id = message.payload.decode("utf-8")
@@ -236,7 +240,7 @@ def on_message_grocy_stock_get(client, userdata, message):
     product = grocy.get_product_in_stock(int(float(product_id)))
     payload = json.dumps(product)
     print(date_time + " - " + payload)
-    client.publish(topic, payload=payload, qos=2)
+    client.publish(topic, payload=payload, qos=2, retain=True)
     print("paylad " + payload + " published for product " + product_id)
 
 def message_append(client, topic):
@@ -289,6 +293,7 @@ if __name__ == "__main__":
     client.on_disconnect = on_disconnect
 
     tops = [message_append(client, topic) for topic in TOPICS]
+    client.user_data_set(tops)
 
     if mqtt_user and mqtt_password:
         client.username_pw_set(mqtt_user, password=mqtt_password)
@@ -296,6 +301,5 @@ if __name__ == "__main__":
     print(mqtt_host)
     print(grocy_host)
     client.connect(mqtt_host, keepalive=300)
-    client.subscribe(tops)
     client.loop_forever()
  
