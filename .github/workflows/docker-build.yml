@@ -1,9 +1,10 @@
 name: Build and Push Docker Image
 
-# Pull requests build and smoke-test the image without pushing it.
-# Add the 'build-docker' label to a pull request to also push it, tagged with
-# the branch name; the label is removed again once the run finishes.
-# Pushes to master publish :latest, tags v* publish the matching version.
+# Images are built in exactly three cases and no other:
+#   - a pull request labelled 'build-docker', published under the branch name
+#     (the label is removed again once the run finishes)
+#   - a push to master, published as :latest
+#   - a tag v*, published as the matching version
 on:
   push:
     branches:
@@ -13,7 +14,7 @@ on:
   pull_request:
     branches:
       - master
-    types: [opened, synchronize, reopened, labeled]
+    types: [labeled]
 
 env:
   IMAGE_NAME: alkcxy/grocy2mqtt
@@ -71,11 +72,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Branch names routinely contain '/', which is not valid in a docker tag.
-      - name: Derive a tag-safe branch name
-        id: branch
-        run: echo "name=${GITHUB_HEAD_REF//\//-}" >> "$GITHUB_OUTPUT"
-
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -85,7 +81,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.branch.outputs.name }},enable=${{ github.event_name == 'pull_request' }}
+            type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
 
       - name: Build and push
         uses: docker/build-push-action@v5

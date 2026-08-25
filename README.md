@@ -31,12 +31,16 @@ gitignored and therefore absent from a clean checkout:
 Images are built and pushed by GitHub Actions for `linux/amd64` and
 `linux/arm64` under a single tag, so no architecture suffix is needed:
 
+Images are built in exactly three cases and no other:
+
 - a push to `master` publishes `alkcxy/grocy2mqtt:latest`
 - a tag `vX.Y.Z` publishes `alkcxy/grocy2mqtt:X.Y.Z` and `alkcxy/grocy2mqtt:X.Y`
-- a pull request builds and smoke-tests the image without pushing it
-- adding the `build-docker` label to a pull request also pushes it, tagged
-  with the branch name (slashes become dashes). The label is removed once the
-  run finishes, so a later commit does not silently republish
+- adding the `build-docker` label to a pull request publishes it under the
+  branch name, so a feature branch can be deployed and tried out before it is
+  merged. The label is removed once the run finishes, so a later commit does
+  not silently republish
+
+Ordinary pull request commits build nothing.
 
 The workflow needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository
 secrets.
