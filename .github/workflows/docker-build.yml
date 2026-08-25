@@ -1,0 +1,87 @@
+name: Build and Push Docker Image
+
+# Pull requests build and smoke-test the image without pushing it.
+# Pushes to master publish :latest, tags v* publish the matching version.
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - master
+
+env:
+  IMAGE_NAME: alkcxy/grocy2mqtt
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Built for the runner's own architecture so it can actually be started
+      # below. The multi-arch build reuses this layer cache.
+      - name: Build image for the smoke test
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: grocy2mqtt:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # config.ini is gitignored, so CI builds from a checkout that has none.
+      # Importing app.py runs the whole settings block, which is where a
+      # missing config file used to blow up with a bare KeyError.
+      - name: Smoke test settings loading without config.ini
+        run: |
+          test ! -f config.ini
+          docker run --rm \
+            -e GROCY_HOST=http://grocy.invalid \
+            -e GROCY_API_KEY=dummy \
+            -e MQTT_HOST=mosquitto.invalid \
+            grocy2mqtt:smoke python -c "import app; print('settings loaded:', app.grocy_host, app.mqtt_host)"
+
+      - name: Smoke test that required settings fail loudly
+        run: |
+          if docker run --rm grocy2mqtt:smoke python -c "import app" 2>/tmp/err; then
+            echo "expected a failure when no settings are provided"; exit 1
+          fi
+          grep -q "missing required settings" /tmp/err || { cat /tmp/err; exit 1; }
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

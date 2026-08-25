@@ -250,30 +250,37 @@ def message_append(client, topic):
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-if os.environ.get('GROCY_HOST'):
-    grocy_host = os.environ.get('GROCY_HOST')
-else:
-    grocy_host = config['grocy']['host']
+def setting(env_var, section, key, default=""):
+    """Read a setting from the environment, falling back to config.ini.
 
-if os.environ.get('GROCY_API_KEY'):
-    grocy_api = os.environ.get('GROCY_API_KEY')
-else:
-    grocy_api = config['grocy']['api_key']
+    config.ini is gitignored, so a clean checkout does not have one. A missing
+    file, section or key is therefore not an error: it just means the value
+    comes from the environment, or stays empty for the optional ones.
+    """
+    value = os.environ.get(env_var)
+    if value:
+        return value
+    try:
+        return config[section][key]
+    except KeyError:
+        return default
 
-if os.environ.get('MQTT_HOST'):
-    mqtt_host = os.environ.get('MQTT_HOST')
-else:
-    mqtt_host = config['mqtt']['host']
+grocy_host = setting('GROCY_HOST', 'grocy', 'host')
+grocy_api = setting('GROCY_API_KEY', 'grocy', 'api_key')
+mqtt_host = setting('MQTT_HOST', 'mqtt', 'host')
+mqtt_user = setting('MQTT_USER', 'mqtt', 'user')
+mqtt_password = setting('MQTT_PWD', 'mqtt', 'pwd')
 
-if os.environ.get('MQTT_USER'):
-    mqtt_user = os.environ.get('MQTT_USER')
-else:
-    mqtt_user = config['mqtt']['user']
-
-if os.environ.get('MQTT_PWD'):
-    mqtt_password = os.environ.get('MQTT_PWD')
-else:
-    mqtt_password = config['mqtt']['pwd']
+missing = [name for name, value in (
+    ("GROCY_HOST", grocy_host),
+    ("GROCY_API_KEY", grocy_api),
+    ("MQTT_HOST", mqtt_host),
+) if not value]
+if missing:
+    raise SystemExit(
+        "missing required settings: %s. Set them in the environment "
+        "or in config.ini." % ", ".join(missing)
+    )
 
 TOPIC_HOME_MEALPLAN_LIST = "home/mealplan/list"
 TOPIC_HOME_MEALPLAN_CONSUMED = "home/mealplan/consumed"
