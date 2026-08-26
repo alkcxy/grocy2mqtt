@@ -12,3 +12,10 @@ __pycache__/
 *.py[cod]
 config.ini
 README.md
+# Tests are not part of the running service. Excluded here so they never ship
+# in the image, which is also what lets the build workflow ignore them when
+# deciding whether a push can change anything.
+tests/
+test_*.py
+*_test.py
+conftest.py

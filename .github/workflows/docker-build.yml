@@ -5,8 +5,11 @@ name: Build and Push Docker Image
 #     name so the branch can be deployed and tried out before it is merged.
 #     The label is removed once the run finishes, so a later commit does not
 #     silently republish.
-#   - a push to master, published as :latest
-#   - a v* tag, published as the matching version
+#   - a push to master that changes something the image is made of, published
+#     as :latest. A push that only touches documentation is skipped: it would
+#     produce a byte-identical image.
+#   - a v* tag, published as the matching version. Always, regardless of what
+#     changed, because a release must be publishable on demand.
 # Ordinary pull request commits build nothing.
 on:
   push:
@@ -23,12 +26,65 @@ env:
   IMAGE_NAME: alkcxy/grocy2mqtt
 
 jobs:
-  build-and-push:
+  # A push to master that changes only documentation produces a byte-identical
+  # image, so building it wastes a few minutes and republishes :latest for
+  # nothing. This decides whether the push touched anything the image is made
+  # of.
+  #
+  # Deliberately a job condition rather than an `on.push.paths` filter: that
+  # filter would also apply to the `tags: v*` trigger, and a tag pointing at a
+  # commit that is already on master pushes no new commits, so the filter would
+  # match nothing and silently stop publishing releases.
+  decide:
     runs-on: ubuntu-latest
-    # Gated here rather than on the individual steps: 'labeled' fires for every
-    # label, so without this the whole job would run on 'bug', 'documentation'
-    # and the rest, only to skip the push at the end.
     if: github.event_name != 'pull_request' || github.event.label.name == 'build-docker'
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - id: check
+        env:
+          # What the image is made of. Any .py anywhere, not just the two at
+          # the root: the Dockerfile ends with COPY . ., so a module added in
+          # a subdirectory tomorrow is executed code too.
+          #
+          # This workflow is not in the list. .dockerignore excludes .github,
+          # so editing it cannot change the image content. It can still change
+          # what gets published -- platforms, which Dockerfile -- and the way
+          # to verify that is the build-docker label on the pull request,
+          # which is what the label is for.
+          #
+          # README.md is excluded by .dockerignore; LICENSE and .gitignore are
+          # copied but cannot change how the container behaves.
+          RELEVANT: '\.py$|^(Dockerfile|pyproject\.toml|uv\.lock|\.dockerignore)$'
+          # Tests run in CI, never in the container, and .dockerignore keeps
+          # them out of the image. Checked after RELEVANT so a test file does
+          # not qualify just for ending in .py.
+          IRRELEVANT: '^tests/|(^|/)(test_[^/]*|[^/]*_test|conftest)\.py$'
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref_type }}" = tag ] || [ "${{ github.event_name }}" = pull_request ]; then
+            echo "A release tag or an explicitly labelled pull request always builds."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^ HEAD)
+          echo "Changed in this push:"; echo "$changed" | sed 's/^/  /'
+          if echo "$changed" | grep -E "$RELEVANT" | grep -qvE "$IRRELEVANT"; then
+            echo "Something the image is built from changed."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the image is built from changed; skipping the build."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v5
@@ -107,7 +163,7 @@ jobs:
 
   remove-label:
     runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: [decide, build-and-push]
     if: always() && github.event_name == 'pull_request' && github.event.label.name == 'build-docker'
     permissions:
       pull-requests: write
