@@ -60,6 +60,10 @@ jobs:
           # README.md is excluded by .dockerignore; LICENSE and .gitignore are
           # copied but cannot change how the container behaves.
           RELEVANT: '\.py$|^(Dockerfile|pyproject\.toml|uv\.lock|\.dockerignore)$'
+          # Tests run in CI, never in the container, and .dockerignore keeps
+          # them out of the image. Checked after RELEVANT so a test file does
+          # not qualify just for ending in .py.
+          IRRELEVANT: '^tests/|(^|/)(test_[^/]*|[^/]*_test|conftest)\.py$'
         run: |
           set -euo pipefail
           if [ "${{ github.ref_type }}" = tag ] || [ "${{ github.event_name }}" = pull_request ]; then
@@ -69,7 +73,7 @@ jobs:
           fi
           changed=$(git diff --name-only HEAD^ HEAD)
           echo "Changed in this push:"; echo "$changed" | sed 's/^/  /'
-          if echo "$changed" | grep -qE "$RELEVANT"; then
+          if echo "$changed" | grep -E "$RELEVANT" | grep -qvE "$IRRELEVANT"; then
             echo "Something the image is built from changed."
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
