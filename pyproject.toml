@@ -1,0 +1,21 @@
+[project]
+name = "grocy2mqtt"
+version = "1.0.0"
+description = "Bridge between grocy and MQTT, so home assistant can drive the pantry"
+requires-python = ">=3.13"
+dependencies = [
+    # requests 2.33+ needs Python >= 3.10, which is part of why the image no
+    # longer runs 3.8. Kept as a floor rather than a pin: uv.lock is what
+    # decides the exact version that gets installed.
+    "requests>=2.34.2",
+    # paho-mqtt 2.x is a breaking API change: Client() requires an explicit
+    # CallbackAPIVersion and on_connect/on_disconnect grow new parameters.
+    # app.py is written against the 1.x callback signatures, so the major
+    # version is capped until someone deliberately ports the callbacks.
+    "paho-mqtt>=1.6.1,<2",
+]
+
+# app.py is a script at the repository root, not an installable package: there
+# is nothing to build, so uv only has to install the dependencies.
+[tool.uv]
+package = false
