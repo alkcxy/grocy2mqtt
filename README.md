@@ -1,15 +1,34 @@
 # grocy2mqtt
 Workaround to connect grocy to home assistant
 
-```
-docker run -itd --name mosquitto -p 1883:1883 -p 9001:9001 -v ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf -v ./mosquitto/data:/mosquitto/data -v ./mosquitto/log:/mosquitto/log eclipse-mosquitto
+## A broker to test against
+
+grocy2mqtt talks to whatever broker `MQTT_HOST` points at. To get a throwaway
+one locally:
+
+```bash
+printf 'listener 1883\nallow_anonymous true\n' > /tmp/mosquitto.conf
+docker run -itd --name mosquitto -p 1883:1883 \
+  -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
 ```
 
-```
+Both lines in that config are load-bearing on mosquitto 2.x, so do not trim
+them:
+
+- without `listener 1883` the default listener binds to `127.0.0.1` *inside*
+  the container, so the published port reaches nothing and clients fail with
+  rc=7, "connection lost"
+- without `allow_anonymous true` an unauthenticated client is refused with
+  rc=5, "not authorised"
+
+Set `MQTT_USER` / `MQTT_PWD` and swap `allow_anonymous true` for a
+`password_file` if you want the test broker authenticated, as the real
+deployment is.
+
+Publish a retained message and read it back:
+
+```bash
 mosquitto_pub -h 127.0.0.1 -p 1883 -t grocy/mealplan -n -r -d
-```
-
-```
 mosquitto_sub -h 127.0.0.1 -p 1883 -t "grocy/mealplan/today"
 ```
 
