@@ -47,12 +47,19 @@ jobs:
 
       - id: check
         env:
-          # What the image is made of, plus this workflow. Any .py anywhere,
-          # not just the two at the root: the Dockerfile ends with COPY . .,
-          # so a module added in a subdirectory tomorrow is executed code too.
+          # What the image is made of. Any .py anywhere, not just the two at
+          # the root: the Dockerfile ends with COPY . ., so a module added in
+          # a subdirectory tomorrow is executed code too.
+          #
+          # This workflow is not in the list. .dockerignore excludes .github,
+          # so editing it cannot change the image content. It can still change
+          # what gets published -- platforms, which Dockerfile -- and the way
+          # to verify that is the build-docker label on the pull request,
+          # which is what the label is for.
+          #
           # README.md is excluded by .dockerignore; LICENSE and .gitignore are
           # copied but cannot change how the container behaves.
-          RELEVANT: '\.py$|^(Dockerfile|pyproject\.toml|uv\.lock|\.dockerignore|\.github/workflows/docker-build\.yml)$'
+          RELEVANT: '\.py$|^(Dockerfile|pyproject\.toml|uv\.lock|\.dockerignore)$'
         run: |
           set -euo pipefail
           if [ "${{ github.ref_type }}" = tag ] || [ "${{ github.event_name }}" = pull_request ]; then
