@@ -2,7 +2,7 @@ import os
 import requests, json, re
 from datetime import date, datetime
 import configparser
-from paho.mqtt.client import Client
+from paho.mqtt.client import Client, connack_string, error_string
 from enum import IntEnum
 
 class ErrorCode(IntEnum):
@@ -192,6 +192,14 @@ def __grocy_shoppinglists_add__():
     return grocy.payload
 
 def on_connect(client, userdata, flags, rc):
+    # A refused CONNACK arrives here too, with a non-zero return code: the
+    # broker answered, it just said no (bad credentials, not authorised).
+    # Reporting it as a connection and subscribing anyway would leave the
+    # service looking healthy while receiving nothing, and paho retries, so
+    # the false "Connected" repeats for as long as it stays refused.
+    if rc != 0:
+        print(f"Connection refused: {connack_string(rc)}")
+        return
     print("Connected")
     # Subscriptions must be renewed on every (re)connect: the session is clean,
     # so the broker drops them on disconnect and paho does not replay them.
@@ -200,7 +208,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
-        print(f"Unexpected disconnection. Error code: {rc}")
+        print(f"Unexpected disconnection: {error_string(rc)}")
 
 def __retrieve_date_from_payload(payload):
     day = date.today()
