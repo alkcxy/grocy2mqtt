@@ -77,6 +77,10 @@ Images are built in exactly three cases and no other:
 
 Ordinary pull request commits build nothing.
 
+The tag is the only place a release version is written down: `pyproject.toml`
+declares `dynamic = ["version"]`, so tagging `vX.Y.Z` is the whole release.
+Nothing in the repository needs bumping first.
+
 The workflow needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository
 secrets.
 
