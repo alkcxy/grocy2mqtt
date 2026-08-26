@@ -1,0 +1,5 @@
+# The broker writes its persistence database (mosquitto.db) here at run time.
+# Keep the directory so the volume mount has something to bind to, but track
+# nothing inside it.
+*
+!.gitignore
