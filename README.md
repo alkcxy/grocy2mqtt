@@ -68,8 +68,13 @@ Images are built and pushed by GitHub Actions for `linux/amd64` and
 
 Images are built in exactly three cases and no other:
 
-- a push to `master` publishes `alkcxy/grocy2mqtt:latest`
-- a tag `vX.Y.Z` publishes `alkcxy/grocy2mqtt:X.Y.Z` and `alkcxy/grocy2mqtt:X.Y`
+- a push to `master` publishes `alkcxy/grocy2mqtt:latest`, but only when it
+  changes something the image is built from: the Dockerfile, any `.py`,
+  `pyproject.toml`, `uv.lock`, `.dockerignore` or the build workflow. A
+  documentation-only push is skipped, since it would rebuild and republish
+  a byte-identical image
+- a tag `vX.Y.Z` publishes `alkcxy/grocy2mqtt:X.Y.Z` and `alkcxy/grocy2mqtt:X.Y`,
+  always, whatever the tagged commit changed
 - adding the `build-docker` label to a pull request publishes it under the
   branch name, so a feature branch can be deployed and tried out before it is
   merged. The label is removed once the run finishes, so a later commit does
