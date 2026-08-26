@@ -128,7 +128,6 @@ wheels = [
 
 [[package]]
 name = "grocy2mqtt"
-version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "paho-mqtt" },

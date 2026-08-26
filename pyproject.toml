@@ -1,6 +1,12 @@
 [project]
 name = "grocy2mqtt"
-version = "1.0.0"
+# The released version is the git tag: that is what metadata-action turns
+# into the image tag and the org.opencontainers.image.version label. A
+# number here would be a second copy of the same fact, and the copy is the
+# one that goes stale -- it did, sitting at 1.0.0 while the published image
+# was already 1.0.1. Nothing reads it either: with package = false the
+# project is never installed, so importlib.metadata never sees a version.
+dynamic = ["version"]
 description = "Bridge between grocy and MQTT, so home assistant can drive the pantry"
 requires-python = ">=3.13"
 dependencies = [

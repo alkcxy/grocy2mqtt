@@ -5,6 +5,10 @@
 .github
 .venv
 __pycache__/
+# Left behind by a local `uv lock`: with a dynamic version uv builds the
+# project metadata to resolve it. Gitignored already, but a local build
+# copies the working tree, not the commit.
+*.egg-info/
 *.py[cod]
 config.ini
 README.md
